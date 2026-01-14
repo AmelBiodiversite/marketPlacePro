@@ -59,10 +59,10 @@ class Database {
 
         } catch (PDOException $e) {
             error_log("Database Connection Error: " . $e->getMessage());
-            die("Erreur de connexion à la base de données : " . $e->getMessage());
+            die("Erreur interne. Veuillez réessayer plus tard.");
         } catch (Exception $e) {
             error_log("Database Error: " . $e->getMessage());
-            die("Erreur de configuration : " . $e->getMessage());
+            die("Erreur interne. Veuillez réessayer plus tard.");
         }
     }
 

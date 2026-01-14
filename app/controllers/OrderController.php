@@ -134,10 +134,35 @@ class OrderController extends Controller {
      * Servir un fichier en téléchargement
      */
     private function serveFile($item) {
-        $filePath = ROOT_PATH . $item['file_path'];
+        // Verify file_path is set
+        if (empty($item['file_path'])) {
+            error_log("File path is empty for item: " . json_encode($item));
+            redirectWithMessage(
+                '/orders',
+                'Erreur interne. Contactez le support.',
+                'error'
+            );
+            return;
+        }
+        
+        // Resolve real path and verify it's within UPLOAD_DIR
+        $uploadDir = realpath(UPLOAD_DIR);
+        $filePath = realpath($uploadDir . DIRECTORY_SEPARATOR . ltrim($item['file_path'], '/\\'));
+        
+        // Verify path is valid and within UPLOAD_DIR (path traversal protection)
+        if ($filePath === false || strpos($filePath, $uploadDir) !== 0) {
+            error_log("Invalid file path attempted: " . $item['file_path']);
+            redirectWithMessage(
+                '/orders',
+                'Erreur interne. Contactez le support.',
+                'error'
+            );
+            return;
+        }
 
         // Vérifier que le fichier existe
         if (!file_exists($filePath)) {
+            error_log("File not found: " . $filePath);
             redirectWithMessage(
                 '/orders',
                 'Fichier introuvable. Contactez le support.',
@@ -149,22 +174,43 @@ class OrderController extends Controller {
         // Définir les headers pour le téléchargement
         $filename = sanitizeFilename($item['product_title']) . '.' . pathinfo($filePath, PATHINFO_EXTENSION);
         $filesize = filesize($filePath);
-        $mimetype = mime_content_type($filePath);
+        
+        // Detect MIME type safely
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimetype = finfo_file($finfo, $filePath);
+        finfo_close($finfo);
 
         // Headers de téléchargement
         header('Content-Type: ' . $mimetype);
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
         header('Content-Length: ' . $filesize);
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
         header('Expires: 0');
 
         // Nettoyer le buffer de sortie
-        ob_clean();
-        flush();
-
-        // Lire et envoyer le fichier
-        readfile($filePath);
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Stream file in chunks to avoid memory issues
+        $handle = fopen($filePath, 'rb');
+        if ($handle === false) {
+            error_log("Failed to open file: " . $filePath);
+            redirectWithMessage(
+                '/orders',
+                'Erreur lors du téléchargement. Contactez le support.',
+                'error'
+            );
+            return;
+        }
+        
+        while (!feof($handle)) {
+            echo fread($handle, 8192);
+            flush();
+        }
+        
+        fclose($handle);
         exit;
     }
 

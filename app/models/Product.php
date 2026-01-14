@@ -119,30 +119,64 @@ class Product extends Model {
      * Upload thumbnail
      */
     private function uploadThumbnail($file) {
-        $uploadDir = UPLOAD_DIR . 'products/thumbnails/';
-        $filename = uniqid() . '_' . basename($file['name']);
-        $filepath = $uploadDir . $filename;
-
-        if (move_uploaded_file($file['tmp_name'], $filepath)) {
-            return '/public/uploads/products/thumbnails/' . $filename;
+        // Define allowed MIME types for thumbnails (images only)
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif'];
+        $maxSize = 50 * 1024 * 1024; // 50MB
+        
+        // Validate upload
+        $validation = isValidUpload($file, $allowedMimes, $maxSize);
+        if ($validation === false) {
+            throw new \Exception('Fichier invalide');
         }
-
-        throw new \Exception('Erreur lors de l\'upload de l\'image');
+        
+        // Prepare upload directory
+        $uploadDir = rtrim(UPLOAD_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'products/thumbnails/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        // Generate secure random filename
+        $filename = bin2hex(random_bytes(16)) . '.' . $validation['ext'];
+        $filepath = $uploadDir . $filename;
+        
+        // Move uploaded file
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            throw new \Exception('Erreur lors de l\'upload');
+        }
+        
+        return '/public/uploads/products/thumbnails/' . $filename;
     }
 
     /**
      * Upload product file
      */
     private function uploadProductFile($file) {
-        $uploadDir = UPLOAD_DIR . 'products/files/';
-        $filename = uniqid() . '_' . basename($file['name']);
-        $filepath = $uploadDir . $filename;
-
-        if (move_uploaded_file($file['tmp_name'], $filepath)) {
-            return '/public/uploads/products/files/' . $filename;
+        // Define allowed MIME types for product files
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'application/zip', 'application/pdf', 'text/plain'];
+        $maxSize = 50 * 1024 * 1024; // 50MB
+        
+        // Validate upload
+        $validation = isValidUpload($file, $allowedMimes, $maxSize);
+        if ($validation === false) {
+            throw new \Exception('Fichier invalide');
         }
-
-        throw new \Exception('Erreur lors de l\'upload du fichier');
+        
+        // Prepare upload directory
+        $uploadDir = rtrim(UPLOAD_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'products/files/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        // Generate secure random filename
+        $filename = bin2hex(random_bytes(16)) . '.' . $validation['ext'];
+        $filepath = $uploadDir . $filename;
+        
+        // Move uploaded file
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            throw new \Exception('Erreur lors de l\'upload');
+        }
+        
+        return '/public/uploads/products/files/' . $filename;
     }
 
     /**
