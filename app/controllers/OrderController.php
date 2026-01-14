@@ -134,10 +134,51 @@ class OrderController extends Controller {
      * Servir un fichier en téléchargement
      */
     private function serveFile($item) {
-        $filePath = ROOT_PATH . $item['file_path'];
+        // Verify file_path is set
+        if (empty($item['file_path'])) {
+            error_log("File path is empty for item: " . json_encode($item));
+            redirectWithMessage(
+                '/orders',
+                'Erreur interne. Contactez le support.',
+                'error'
+            );
+            return;
+        }
+        
+        // Sanitize file path - remove directory traversal sequences and normalize
+        $sanitizedPath = str_replace(['..', '\\'], ['', '/'], $item['file_path']);
+        $sanitizedPath = ltrim($sanitizedPath, '/');
+        
+        // Resolve real path and verify it's within UPLOAD_DIR
+        $uploadDir = realpath(UPLOAD_DIR);
+        $requestedPath = $uploadDir . DIRECTORY_SEPARATOR . $sanitizedPath;
+        $filePath = realpath($requestedPath);
+        
+        // Verify path is valid and within UPLOAD_DIR (path traversal and symlink protection)
+        if ($filePath === false || strpos($filePath, $uploadDir) !== 0) {
+            error_log("Invalid file path attempted: " . $item['file_path'] . " (sanitized: " . $sanitizedPath . ")");
+            redirectWithMessage(
+                '/orders',
+                'Erreur interne. Contactez le support.',
+                'error'
+            );
+            return;
+        }
+        
+        // Additional check: ensure the resolved path doesn't escape via symlink
+        if (!file_exists($filePath) || is_link($requestedPath)) {
+            error_log("Symlink or non-existent file detected: " . $requestedPath);
+            redirectWithMessage(
+                '/orders',
+                'Erreur interne. Contactez le support.',
+                'error'
+            );
+            return;
+        }
 
-        // Vérifier que le fichier existe
-        if (!file_exists($filePath)) {
+        // Vérifier que le fichier existe et est un fichier régulier
+        if (!is_file($filePath)) {
+            error_log("Path is not a regular file: " . $filePath);
             redirectWithMessage(
                 '/orders',
                 'Fichier introuvable. Contactez le support.',
@@ -149,22 +190,55 @@ class OrderController extends Controller {
         // Définir les headers pour le téléchargement
         $filename = sanitizeFilename($item['product_title']) . '.' . pathinfo($filePath, PATHINFO_EXTENSION);
         $filesize = filesize($filePath);
-        $mimetype = mime_content_type($filePath);
+        
+        // Detect MIME type safely with error handling
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo === false) {
+            error_log("Failed to initialize finfo for file serving");
+            $mimetype = 'application/octet-stream'; // Fallback MIME type
+        } else {
+            $mimetype = finfo_file($finfo, $filePath);
+            finfo_close($finfo);
+            if ($mimetype === false) {
+                error_log("Failed to detect MIME type for file: " . $filePath);
+                $mimetype = 'application/octet-stream'; // Fallback MIME type
+            }
+        }
+
+        // Escape filename for Content-Disposition header (RFC 6266 compliant)
+        $escapedFilename = str_replace(['\\', '"'], ['\\\\', '\\"'], $filename);
 
         // Headers de téléchargement
         header('Content-Type: ' . $mimetype);
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Disposition: attachment; filename="' . $escapedFilename . '"');
         header('Content-Length: ' . $filesize);
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
         header('Expires: 0');
 
         // Nettoyer le buffer de sortie
-        ob_clean();
-        flush();
-
-        // Lire et envoyer le fichier
-        readfile($filePath);
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Stream file in chunks to avoid memory issues
+        $handle = fopen($filePath, 'rb');
+        if ($handle === false) {
+            error_log("Failed to open file: " . $filePath);
+            redirectWithMessage(
+                '/orders',
+                'Erreur lors du téléchargement. Contactez le support.',
+                'error'
+            );
+            return;
+        }
+        
+        while (!feof($handle)) {
+            echo fread($handle, 8192);
+            flush();
+        }
+        
+        fclose($handle);
         exit;
     }
 

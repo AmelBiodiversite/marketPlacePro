@@ -353,8 +353,51 @@ POST /admin/products/reject/{id}   # Rejeter
 ✅ **Rate Limiting** - Max 5 tentatives connexion/15min
 ✅ **HTTPS Only** - Recommandé en production
 ✅ **Sessions Sécurisées** - Httponly, Secure flags
-✅ **Upload Validation** - Types et tailles de fichiers
+✅ **Upload Validation** - Types et tailles de fichiers validés avec MIME type detection (finfo)
+✅ **Secure File Serving** - Path traversal protection avec realpath() et validation
 ✅ **Logs d'activité** - Traçabilité des actions sensibles
+✅ **Error Handling** - Messages d'erreur génériques (pas de fuite d'information)
+
+### Upload de Fichiers
+
+**MIME Types Autorisés:**
+- Images: `image/jpeg`, `image/png`, `image/gif`
+- Documents: `application/zip`, `application/pdf`, `text/plain`
+
+**Taille Maximum:** 50 MB
+
+**Validation:**
+- Détection MIME avec finfo_file (pas de validation par extension)
+- Génération de noms de fichiers sécurisés (random_bytes)
+- Pas d'utilisation des noms de fichiers fournis par l'utilisateur
+
+### Configuration UPLOAD_DIR
+
+Il est recommandé de configurer `UPLOAD_DIR` pour pointer vers un dossier en dehors du webroot :
+
+```php
+// config/config.php
+// Recommandé pour la production
+define('UPLOAD_DIR', '/var/www/marketflow-pro/data/uploads/');
+```
+
+**Serveur Web - Nginx (Configuration Recommandée):**
+
+Pour servir les fichiers uploads de manière sécurisée avec Nginx, utilisez une location interne :
+
+```nginx
+# Protéger les fichiers uploads
+location /public/uploads/ {
+    internal;
+    alias /var/www/marketflow-pro/data/uploads/;
+}
+```
+
+Cette configuration empêche l'accès direct aux fichiers et force le passage par l'application PHP pour les contrôles d'autorisation.
+
+### Scripts de Debug Supprimés
+
+⚠️ **Note de Sécurité:** Les fichiers `phpinfo.php` et `test-db.php` ont été supprimés du dépôt car ils exposaient des informations sensibles. Ces fichiers ne doivent jamais être présents en production.
 
 ### Recommandations Production
 

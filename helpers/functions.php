@@ -115,3 +115,86 @@ function generateCsrfToken() {
 function verifyCsrfToken($token) {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
+
+/**
+ * Get allowed MIME types configuration
+ * Centralized configuration for upload validation
+ */
+function getAllowedMimeTypes() {
+    return [
+        'images' => ['image/jpeg', 'image/png', 'image/gif'],
+        'documents' => ['application/zip', 'application/pdf', 'text/plain'],
+        'all' => ['image/jpeg', 'image/png', 'image/gif', 'application/zip', 'application/pdf', 'text/plain']
+    ];
+}
+
+/**
+ * Get file extension from MIME type
+ */
+function mimeToExtension($mime) {
+    $mimeMap = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'application/zip' => 'zip',
+        'application/pdf' => 'pdf',
+        'text/plain' => 'txt'
+    ];
+    
+    return $mimeMap[$mime] ?? null;
+}
+
+/**
+ * Validate uploaded file
+ * @param array $file The uploaded file from $_FILES
+ * @param array $allowedMimes Array of allowed MIME types
+ * @param int $maxSize Maximum file size in bytes
+ * @return array|false Returns array with 'mime' and 'ext' on success, false on failure
+ */
+function isValidUpload($file, $allowedMimes, $maxSize) {
+    // Check if file was uploaded
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return false;
+    }
+    
+    // Check for upload errors
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        return false;
+    }
+    
+    // Check file size
+    if ($file['size'] > $maxSize || $file['size'] <= 0) {
+        return false;
+    }
+    
+    // Detect MIME type using finfo
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo === false) {
+        error_log("Failed to initialize finfo for file upload validation");
+        return false;
+    }
+    
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    if ($mime === false) {
+        error_log("Failed to detect MIME type for uploaded file");
+        return false;
+    }
+    
+    // Validate MIME type
+    if (!in_array($mime, $allowedMimes)) {
+        return false;
+    }
+    
+    // Get extension from MIME
+    $ext = mimeToExtension($mime);
+    if ($ext === null) {
+        return false;
+    }
+    
+    return [
+        'mime' => $mime,
+        'ext' => $ext
+    ];
+}
