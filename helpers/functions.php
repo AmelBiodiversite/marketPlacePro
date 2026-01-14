@@ -158,11 +158,17 @@ function isValidUpload($file, $allowedMimes, $maxSize) {
     // Detect MIME type using finfo
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     if ($finfo === false) {
+        error_log("Failed to initialize finfo for file upload validation");
         return false;
     }
     
     $mime = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
+    
+    if ($mime === false) {
+        error_log("Failed to detect MIME type for uploaded file");
+        return false;
+    }
     
     // Validate MIME type
     if (!in_array($mime, $allowedMimes)) {

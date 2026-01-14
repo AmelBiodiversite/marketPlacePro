@@ -116,6 +116,19 @@ class Product extends Model {
     }
 
     /**
+     * Prepare upload directory
+     */
+    private function prepareUploadDir($subdir) {
+        $uploadDir = rtrim(UPLOAD_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $subdir;
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0755, true)) {
+                throw new \Exception('Erreur lors de la création du répertoire');
+            }
+        }
+        return $uploadDir;
+    }
+
+    /**
      * Upload thumbnail
      */
     private function uploadThumbnail($file) {
@@ -130,10 +143,7 @@ class Product extends Model {
         }
         
         // Prepare upload directory
-        $uploadDir = rtrim(UPLOAD_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'products/thumbnails/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
+        $uploadDir = $this->prepareUploadDir('products/thumbnails/');
         
         // Generate secure random filename
         $filename = bin2hex(random_bytes(16)) . '.' . $validation['ext'];
@@ -162,10 +172,7 @@ class Product extends Model {
         }
         
         // Prepare upload directory
-        $uploadDir = rtrim(UPLOAD_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'products/files/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
-        }
+        $uploadDir = $this->prepareUploadDir('products/files/');
         
         // Generate secure random filename
         $filename = bin2hex(random_bytes(16)) . '.' . $validation['ext'];

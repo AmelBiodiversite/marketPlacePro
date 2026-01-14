@@ -145,13 +145,17 @@ class OrderController extends Controller {
             return;
         }
         
+        // Sanitize file path - remove directory traversal sequences and normalize
+        $sanitizedPath = str_replace(['..', '\\'], ['', '/'], $item['file_path']);
+        $sanitizedPath = ltrim($sanitizedPath, '/');
+        
         // Resolve real path and verify it's within UPLOAD_DIR
         $uploadDir = realpath(UPLOAD_DIR);
-        $filePath = realpath($uploadDir . DIRECTORY_SEPARATOR . ltrim($item['file_path'], '/\\'));
+        $filePath = realpath($uploadDir . DIRECTORY_SEPARATOR . $sanitizedPath);
         
         // Verify path is valid and within UPLOAD_DIR (path traversal protection)
         if ($filePath === false || strpos($filePath, $uploadDir) !== 0) {
-            error_log("Invalid file path attempted: " . $item['file_path']);
+            error_log("Invalid file path attempted: " . $item['file_path'] . " (sanitized: " . $sanitizedPath . ")");
             redirectWithMessage(
                 '/orders',
                 'Erreur interne. Contactez le support.',
@@ -180,9 +184,12 @@ class OrderController extends Controller {
         $mimetype = finfo_file($finfo, $filePath);
         finfo_close($finfo);
 
+        // Escape filename for Content-Disposition header (RFC 6266 compliant)
+        $escapedFilename = str_replace(['\\', '"'], ['\\\\', '\\"'], $filename);
+
         // Headers de téléchargement
         header('Content-Type: ' . $mimetype);
-        header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
+        header('Content-Disposition: attachment; filename="' . $escapedFilename . '"');
         header('Content-Length: ' . $filesize);
         header('Cache-Control: must-revalidate');
         header('Pragma: public');
