@@ -132,8 +132,9 @@ class Product extends Model {
      * Upload thumbnail
      */
     private function uploadThumbnail($file) {
-        // Define allowed MIME types for thumbnails (images only)
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif'];
+        // Get allowed MIME types for thumbnails (images only)
+        $mimeTypes = getAllowedMimeTypes();
+        $allowedMimes = $mimeTypes['images'];
         $maxSize = 50 * 1024 * 1024; // 50MB
         
         // Validate upload
@@ -161,8 +162,9 @@ class Product extends Model {
      * Upload product file
      */
     private function uploadProductFile($file) {
-        // Define allowed MIME types for product files
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'application/zip', 'application/pdf', 'text/plain'];
+        // Get allowed MIME types for product files
+        $mimeTypes = getAllowedMimeTypes();
+        $allowedMimes = $mimeTypes['all'];
         $maxSize = 50 * 1024 * 1024; // 50MB
         
         // Validate upload

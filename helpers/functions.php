@@ -117,6 +117,18 @@ function verifyCsrfToken($token) {
 }
 
 /**
+ * Get allowed MIME types configuration
+ * Centralized configuration for upload validation
+ */
+function getAllowedMimeTypes() {
+    return [
+        'images' => ['image/jpeg', 'image/png', 'image/gif'],
+        'documents' => ['application/zip', 'application/pdf', 'text/plain'],
+        'all' => ['image/jpeg', 'image/png', 'image/gif', 'application/zip', 'application/pdf', 'text/plain']
+    ];
+}
+
+/**
  * Get file extension from MIME type
  */
 function mimeToExtension($mime) {

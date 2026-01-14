@@ -151,9 +151,10 @@ class OrderController extends Controller {
         
         // Resolve real path and verify it's within UPLOAD_DIR
         $uploadDir = realpath(UPLOAD_DIR);
-        $filePath = realpath($uploadDir . DIRECTORY_SEPARATOR . $sanitizedPath);
+        $requestedPath = $uploadDir . DIRECTORY_SEPARATOR . $sanitizedPath;
+        $filePath = realpath($requestedPath);
         
-        // Verify path is valid and within UPLOAD_DIR (path traversal protection)
+        // Verify path is valid and within UPLOAD_DIR (path traversal and symlink protection)
         if ($filePath === false || strpos($filePath, $uploadDir) !== 0) {
             error_log("Invalid file path attempted: " . $item['file_path'] . " (sanitized: " . $sanitizedPath . ")");
             redirectWithMessage(
@@ -163,10 +164,21 @@ class OrderController extends Controller {
             );
             return;
         }
+        
+        // Additional check: ensure the resolved path doesn't escape via symlink
+        if (!file_exists($filePath) || is_link($requestedPath)) {
+            error_log("Symlink or non-existent file detected: " . $requestedPath);
+            redirectWithMessage(
+                '/orders',
+                'Erreur interne. Contactez le support.',
+                'error'
+            );
+            return;
+        }
 
-        // Vérifier que le fichier existe
-        if (!file_exists($filePath)) {
-            error_log("File not found: " . $filePath);
+        // Vérifier que le fichier existe et est un fichier régulier
+        if (!is_file($filePath)) {
+            error_log("Path is not a regular file: " . $filePath);
             redirectWithMessage(
                 '/orders',
                 'Fichier introuvable. Contactez le support.',
@@ -179,10 +191,19 @@ class OrderController extends Controller {
         $filename = sanitizeFilename($item['product_title']) . '.' . pathinfo($filePath, PATHINFO_EXTENSION);
         $filesize = filesize($filePath);
         
-        // Detect MIME type safely
+        // Detect MIME type safely with error handling
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimetype = finfo_file($finfo, $filePath);
-        finfo_close($finfo);
+        if ($finfo === false) {
+            error_log("Failed to initialize finfo for file serving");
+            $mimetype = 'application/octet-stream'; // Fallback MIME type
+        } else {
+            $mimetype = finfo_file($finfo, $filePath);
+            finfo_close($finfo);
+            if ($mimetype === false) {
+                error_log("Failed to detect MIME type for file: " . $filePath);
+                $mimetype = 'application/octet-stream'; // Fallback MIME type
+            }
+        }
 
         // Escape filename for Content-Disposition header (RFC 6266 compliant)
         $escapedFilename = str_replace(['\\', '"'], ['\\\\', '\\"'], $filename);
